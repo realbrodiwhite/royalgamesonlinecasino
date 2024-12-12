@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Providers } from '@/components/Providers';
+import { Providers } from '../components/Providers';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -8,12 +8,13 @@ export const metadata: Metadata = {
   icons: {
     icon: '/favicon.svg',
   },
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
-  },
+};
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
