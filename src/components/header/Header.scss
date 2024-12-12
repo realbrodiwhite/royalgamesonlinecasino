@@ -1,0 +1,40 @@
+.Header {
+  background-color: #1e1e1e;
+  padding: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  .logo {
+    display: flex;
+    gap: 5px;
+    font-family: 'Archivo Black', sans-serif;
+    font-size: 24px;
+    color: white;
+
+    span:first-child {
+      color: #007bff;
+    }
+  }
+
+  .user-info {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+
+    &.d-none {
+      display: none;
+    }
+
+    .balance {
+      display: flex;
+      gap: 5px;
+      color: white;
+      font-size: 18px;
+
+      span:first-child {
+        color: #6c757d;
+      }
+    }
+  }
+}

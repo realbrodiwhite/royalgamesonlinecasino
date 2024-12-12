@@ -1,0 +1,40 @@
+.header {
+  background-color: #1e1e1e;
+  padding: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.logo {
+  display: flex;
+  gap: 5px;
+  font-family: 'Archivo Black', sans-serif;
+  font-size: 24px;
+  color: white;
+}
+
+.logoHighlight {
+  color: #007bff;
+}
+
+.userInfo {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.hidden {
+  display: none;
+}
+
+.balance {
+  display: flex;
+  gap: 5px;
+  color: white;
+  font-size: 18px;
+}
+
+.balanceLabel {
+  color: #6c757d;
+}
