@@ -49,6 +49,9 @@ const Game = ({ gameId }: GameProps) => {
   const gameInstanceRef = useRef<GameInstance | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [retryCount, setRetryCount] = useState(0);
+  const MAX_RETRIES = 3;
+  const LOGIN_TIMEOUT = 10000; // Increased to 10 seconds
 
   useEffect(() => {
     // Ensure we're in the browser environment
@@ -66,27 +69,51 @@ const Game = ({ gameId }: GameProps) => {
           socket.connect();
         }
 
+        // Set up socket event listeners
+        socket.on('connect', () => {
+          console.log('Socket connected successfully');
+        });
+
+        socket.on('connect_error', (error: Error) => {
+          console.error('Socket connection error:', error);
+          handleError('Failed to connect to game server');
+        });
+
+        socket.on('error', (error: Error) => {
+          console.error('Socket error:', error);
+          handleError('Game server error');
+        });
+
         // Emit login event if no key exists
         const key = localStorage.getItem('key');
-        if (!key) {
-          console.log('No key found, logging in as guest...');
-          socket.emit('login', { key: null });
-        }
+        console.log('Using key:', key);
+        socket.emit('login', { key: key || null });
 
-        // Wait for login response
-        await new Promise((resolve, reject) => {
+        // Wait for login response with retry mechanism
+        await new Promise<void>((resolve, reject) => {
+          const loginTimeout = setTimeout(() => {
+            if (retryCount < MAX_RETRIES) {
+              console.log(`Login attempt ${retryCount + 1} timed out, retrying...`);
+              setRetryCount(prev => prev + 1);
+              socket.emit('login', { key: key || null });
+            } else {
+              reject(new Error('Login timeout after multiple attempts'));
+            }
+          }, LOGIN_TIMEOUT);
+
           socket.once('login', (data: LoginResponse) => {
+            clearTimeout(loginTimeout);
             if (data.status === 'logged-in') {
               console.log('Login successful:', data);
-              resolve(data);
+              if (data.key) {
+                localStorage.setItem('key', data.key);
+              }
+              resolve();
             } else {
               console.error('Login failed:', data);
               reject(new Error(data.message || 'Login failed'));
             }
           });
-
-          // Add timeout
-          setTimeout(() => reject(new Error('Login timeout')), 5000);
         });
 
         // Use the rewrite rule path instead of direct server URL
@@ -166,8 +193,17 @@ const Game = ({ gameId }: GameProps) => {
         }
       } catch (error) {
         console.error('Error loading game:', error);
-        setError(error instanceof Error ? error.message : 'Failed to load game');
-        setLoading(false);
+        handleError(error instanceof Error ? error.message : 'Failed to load game');
+      }
+    };
+
+    const handleError = (errorMessage: string) => {
+      setError(errorMessage);
+      setLoading(false);
+      if (retryCount < MAX_RETRIES) {
+        console.log(`Retrying... Attempt ${retryCount + 1} of ${MAX_RETRIES}`);
+        setTimeout(loadGame, 2000); // Retry after 2 seconds
+        setRetryCount(prev => prev + 1);
       }
     };
 
@@ -183,8 +219,19 @@ const Game = ({ gameId }: GameProps) => {
           console.error('Error destroying game:', error);
         }
       }
+      // Clean up socket event listeners
+      socket.off('connect');
+      socket.off('connect_error');
+      socket.off('error');
+      socket.off('login');
     };
-  }, [gameId, router]);
+  }, [gameId, router, retryCount]);
+
+  const handleRetry = () => {
+    setRetryCount(0);
+    setError(null);
+    setLoading(true);
+  };
 
   return (
     <div className={styles.gameContainer} ref={elRef}>
@@ -192,7 +239,16 @@ const Game = ({ gameId }: GameProps) => {
         Back to Lobby
       </Link>
       {loading && <div className={styles.loading}>Loading...</div>}
-      {error && <div className={styles.error}>{error}</div>}
+      {error && (
+        <div className={styles.error}>
+          {error}
+          {retryCount >= MAX_RETRIES && (
+            <button onClick={handleRetry} className={styles.retryButton}>
+              Retry
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

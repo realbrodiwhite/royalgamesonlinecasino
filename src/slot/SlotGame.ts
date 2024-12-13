@@ -1,4 +1,5 @@
 import { Application, Container, Texture, Renderer, Assets, Sprite } from 'pixi.js';
+import io from 'socket.io-client';
 import Reel from './Reel';
 import { ReelsController } from './ReelsController';
 
@@ -12,7 +13,11 @@ type GameAsset = Texture | SpriteSheetAsset;
 // Helper function to extract texture from asset
 function getTextureFromAsset(asset: GameAsset): Texture {
   if ('textures' in asset) {
-    return Object.values(asset.textures)[0];
+    const firstTexture = Object.values(asset.textures)[0];
+    if (!firstTexture) {
+      throw new Error('No textures found in spritesheet');
+    }
+    return firstTexture;
   }
   return asset as Texture;
 }
@@ -60,10 +65,11 @@ export default class SlotGame {
   ticker: Application['ticker'];
   width: number;
   height: number;
-  private readonly socket: WebSocket;
+  config: GameConfig;
+  private readonly socket: ReturnType<typeof io>;
   private initialized: boolean = false;
 
-  constructor(config: GameConfig, socket: WebSocket) {
+  constructor(config: GameConfig, socket: ReturnType<typeof io>) {
     if (typeof window === 'undefined') {
       throw new Error('SlotGame must be initialized in browser environment');
     }
@@ -75,6 +81,7 @@ export default class SlotGame {
     this.stage = new Container();
     this.width = config.width;
     this.height = config.height;
+    this.config = config;
     this.ticker = this.app.ticker;
     this.socket = socket;
   }
@@ -83,6 +90,8 @@ export default class SlotGame {
     if (this.initialized) return;
 
     try {
+      console.log('Initializing SlotGame with config:', this.config);
+      
       // Initialize the application
       await this.app.init({
         width: this.width,
@@ -99,17 +108,27 @@ export default class SlotGame {
       this.reelsContainer = new Container();
       this.stage.addChild(this.reelsContainer);
 
+      // Wait for all textures to be loaded before creating reels
+      await this.waitForTextures();
+
+      // Get all symbol textures
+      const symbolTextures = Array.from(this.textures.values())
+        .filter((asset): asset is Texture => 
+          asset instanceof Texture || 'textures' in asset
+        )
+        .map(getTextureFromAsset);
+
+      if (symbolTextures.length === 0) {
+        throw new Error('No textures available for symbols');
+      }
+
+      console.log(`Creating reels with ${symbolTextures.length} textures`);
+
       // Create the reels
       this.reels = [];
       const REEL_WIDTH = 160;
-      for (let i = 0; i < 5; i++) {
-        // Filter out non-texture assets and convert spritesheet assets to textures
-        const textures = Array.from(this.textures.values())
-          .filter((asset): asset is Texture => 
-            asset instanceof Texture || 'textures' in asset
-          )
-          .map(getTextureFromAsset);
-        const reel = new Reel(textures);
+      for (let i = 0; i < this.config.reelsCount; i++) {
+        const reel = new Reel(symbolTextures);
         reel.container.x = i * REEL_WIDTH;
         this.reels.push(reel);
         this.reelsContainer.addChild(reel.container);
@@ -131,15 +150,38 @@ export default class SlotGame {
       });
 
       this.initialized = true;
+      console.log('SlotGame initialized successfully');
     } catch (error) {
       console.error('Error initializing SlotGame:', error);
       throw error;
     }
   }
 
+  private async waitForTextures(): Promise<void> {
+    if (this.textures.size === 0) {
+      console.warn('No textures loaded yet');
+      return;
+    }
+
+    const loadPromises = Array.from(this.textures.values()).map(async (asset) => {
+      if (asset instanceof Texture) {
+        await asset.baseTexture.resource.load();
+      } else if ('textures' in asset) {
+        await Promise.all(
+          Object.values(asset.textures).map(texture => texture.baseTexture.resource.load())
+        );
+      }
+    });
+
+    await Promise.all(loadPromises);
+    console.log('All textures loaded successfully');
+  }
+
   async addResource(resource: Resource | Resource[]) {
     const resources = Array.isArray(resource) ? resource : [resource];
     const loadPromises = [];
+    
+    console.log('Loading resources:', resources);
     
     for (const res of resources) {
       this.resources.set(res.name, res);
@@ -151,6 +193,7 @@ export default class SlotGame {
         })
         .catch(error => {
           console.error(`Error loading asset ${res.name}:`, error);
+          throw error; // Re-throw to be caught by Promise.all
         });
       loadPromises.push(loadPromise);
     }
