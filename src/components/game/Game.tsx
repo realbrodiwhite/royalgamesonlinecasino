@@ -41,11 +41,17 @@ const Game = ({ gameId }: GameProps) => {
   const gameInstanceRef = useRef<GameInstance | null>(null);
 
   useEffect(() => {
+    // Ensure we're in the browser environment
+    if (typeof window === 'undefined') return;
+
     const loadGame = async () => {
       try {
         console.log(`Loading game with ID: ${gameId}`);
         const response = await axios.get(`http://localhost:3001/gamescripts/${gameId}.js`);
         console.log('Game script response:', response.data);
+        
+        // Import PIXI.js dynamically to ensure it's only loaded in browser
+        const PIXI = await import('pixi.js');
         
         const gameScript = new Function(
           'gameId',
@@ -59,26 +65,48 @@ const Game = ({ gameId }: GameProps) => {
           response.data
         ) as GameScript;
 
+        // Ensure the container element exists before creating the game
+        if (!elRef.current) {
+          throw new Error('Game container not found');
+        }
+
         const game = gameScript(
           gameId,
           SlotGame,
           Reel,
           initControls,
           socket,
-          await import('pixi.js'),
+          PIXI,
           gsap,
           () => router.push('/')
         );
         
         gameInstanceRef.current = game;
         
+        // Remove any existing canvas
         const gameCanvas = elRef.current?.querySelector('canvas');
         if (gameCanvas) {
           gameCanvas.remove();
         }
 
-        if (elRef.current && game.app.view) {
-          elRef.current.appendChild(game.app.view);
+        // Add the new canvas
+        if (elRef.current && game.app.canvas) {
+          elRef.current.appendChild(game.app.canvas);
+          
+          // Handle resize
+          const resizeGame = () => {
+            const parent = game.app.canvas.parentElement;
+            if (parent) {
+              game.app.renderer.resize(parent.clientWidth, parent.clientHeight);
+            }
+          };
+
+          window.addEventListener('resize', resizeGame);
+          resizeGame(); // Initial resize
+
+          return () => {
+            window.removeEventListener('resize', resizeGame);
+          };
         }
       } catch (error) {
         console.error('Error loading game:', error);
