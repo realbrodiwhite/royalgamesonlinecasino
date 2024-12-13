@@ -61,6 +61,7 @@ export default class SlotGame {
   width: number;
   height: number;
   private readonly socket: WebSocket;
+  private initialized: boolean = false;
 
   constructor(config: GameConfig, socket: WebSocket) {
     if (typeof window === 'undefined') {
@@ -79,52 +80,61 @@ export default class SlotGame {
   }
 
   async init() {
-    // Initialize the application
-    await this.app.init({
-      width: this.width,
-      height: this.height,
-      backgroundColor: 0x000000,
-      resolution: window.devicePixelRatio || 1,
-      autoDensity: true,
-    });
+    if (this.initialized) return;
 
-    this.renderer = this.app.renderer;
-    this.app.stage.addChild(this.stage);
+    try {
+      // Initialize the application
+      await this.app.init({
+        width: this.width,
+        height: this.height,
+        backgroundColor: 0x000000,
+        resolution: window.devicePixelRatio || 1,
+        autoDensity: true,
+      });
 
-    // Create the reels container
-    this.reelsContainer = new Container();
-    this.stage.addChild(this.reelsContainer);
+      this.renderer = this.app.renderer;
+      this.app.stage.addChild(this.stage);
 
-    // Create the reels
-    this.reels = [];
-    const REEL_WIDTH = 160;
-    for (let i = 0; i < 5; i++) {
-      // Filter out non-texture assets and convert spritesheet assets to textures
-      const textures = Array.from(this.textures.values())
-        .filter((asset): asset is Texture => 
-          asset instanceof Texture || 'textures' in asset
-        )
-        .map(getTextureFromAsset);
-      const reel = new Reel(textures);
-      reel.container.x = i * REEL_WIDTH;
-      this.reels.push(reel);
-      this.reelsContainer.addChild(reel.container);
+      // Create the reels container
+      this.reelsContainer = new Container();
+      this.stage.addChild(this.reelsContainer);
+
+      // Create the reels
+      this.reels = [];
+      const REEL_WIDTH = 160;
+      for (let i = 0; i < 5; i++) {
+        // Filter out non-texture assets and convert spritesheet assets to textures
+        const textures = Array.from(this.textures.values())
+          .filter((asset): asset is Texture => 
+            asset instanceof Texture || 'textures' in asset
+          )
+          .map(getTextureFromAsset);
+        const reel = new Reel(textures);
+        reel.container.x = i * REEL_WIDTH;
+        this.reels.push(reel);
+        this.reelsContainer.addChild(reel.container);
+      }
+
+      // Center the reels container
+      const appWidth = this.app.canvas?.width;
+      if (appWidth) {
+        this.reelsContainer.x = (appWidth - this.reelsContainer.width) / 2;
+        this.reelsContainer.y = 100;
+      }
+
+      // Create the reels controller
+      this.reelsController = new ReelsController(this.reels);
+
+      // Start the animation loop
+      this.app.ticker.add(() => {
+        this.reels.forEach(reel => reel.update());
+      });
+
+      this.initialized = true;
+    } catch (error) {
+      console.error('Error initializing SlotGame:', error);
+      throw error;
     }
-
-    // Center the reels container
-    const appWidth = this.app.canvas.width;
-    if (appWidth) {
-      this.reelsContainer.x = (appWidth - this.reelsContainer.width) / 2;
-      this.reelsContainer.y = 100;
-    }
-
-    // Create the reels controller
-    this.reelsController = new ReelsController(this.reels);
-
-    // Start the animation loop
-    this.app.ticker.add(() => {
-      this.reels.forEach(reel => reel.update());
-    });
   }
 
   async addResource(resource: Resource | Resource[]) {
@@ -191,27 +201,32 @@ export default class SlotGame {
   }
 
   resize() {
-    if (this.app.canvas) {
-      const parent = this.app.canvas.parentElement;
-      if (parent) {
-        this.app.renderer.resize(parent.clientWidth, parent.clientHeight);
-        
-        // Update stage scale to maintain aspect ratio
-        const scale = Math.min(
-          parent.clientWidth / this.width,
-          parent.clientHeight / this.height
-        );
-        
-        this.stage.scale.set(scale);
-        this.stage.position.set(
-          (parent.clientWidth - this.width * scale) / 2,
-          (parent.clientHeight - this.height * scale) / 2
-        );
-      }
+    if (!this.initialized || !this.app.canvas) return;
+
+    const parent = this.app.canvas.parentElement;
+    if (parent) {
+      this.app.renderer.resize(parent.clientWidth, parent.clientHeight);
+      
+      // Update stage scale to maintain aspect ratio
+      const scale = Math.min(
+        parent.clientWidth / this.width,
+        parent.clientHeight / this.height
+      );
+      
+      this.stage.scale.set(scale);
+      this.stage.position.set(
+        (parent.clientWidth - this.width * scale) / 2,
+        (parent.clientHeight - this.height * scale) / 2
+      );
     }
   }
 
   onInit(callback: () => void) {
+    if (!this.initialized) {
+      console.error('Game not initialized. Call init() first.');
+      return;
+    }
+
     const loadPromises = Array.from(this.resources.values()).map(res => 
       Assets.load(res.source)
         .then(asset => {
@@ -230,6 +245,11 @@ export default class SlotGame {
   }
 
   onLoading(callback: (progress: number) => void) {
+    if (!this.initialized) {
+      console.error('Game not initialized. Call init() first.');
+      return;
+    }
+
     const bundleAssets = Array.from(this.resources.values()).map(r => ({
       alias: r.name,
       src: r.source
@@ -247,7 +267,9 @@ export default class SlotGame {
   }
 
   oncePlay(callback: () => void) {
-    callback();
+    if (this.initialized) {
+      callback();
+    }
   }
 
   onDestroy(callback: () => void) {
@@ -256,6 +278,10 @@ export default class SlotGame {
   }
 
   start() {
+    if (!this.initialized) {
+      console.error('Game not initialized. Call init() first.');
+      return;
+    }
     // Start the game
     this.app.start();
   }

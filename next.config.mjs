@@ -20,10 +20,19 @@ const nextConfig = {
       },
     ];
   },
+  // Configure both Webpack and Turbopack
   webpack: (config) => {
     config.externals = [...config.externals, { canvas: 'canvas' }];
     return config;
   },
+  experimental: {
+    turbo: {
+      rules: {
+        // Add Turbopack configuration
+        externals: ['canvas']
+      }
+    }
+  }
 };
 
 export default nextConfig;
