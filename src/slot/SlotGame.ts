@@ -1,4 +1,4 @@
-import { Application, Container, Texture } from 'pixi.js';
+import { Application, Container, Texture, Renderer } from 'pixi.js';
 import Reel from './Reel';
 import { ReelsController } from './ReelsController';
 
@@ -7,13 +7,16 @@ export default class SlotGame {
   reels: Reel[];
   reelsContainer: Container;
   reelsController: ReelsController;
-  renderer: any; // This will be set to app.renderer
+  renderer: Renderer;
 
   constructor(textures: Texture[]) {
+    // Create application with options directly
     this.app = new Application({
       width: 800,
       height: 600,
       backgroundColor: 0x000000,
+      resolution: window.devicePixelRatio || 1,
+      autoDensity: true,
     });
 
     this.renderer = this.app.renderer;

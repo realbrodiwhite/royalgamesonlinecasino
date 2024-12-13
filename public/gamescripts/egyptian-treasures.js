@@ -1,4 +1,16 @@
-const key = localStorage.getItem('key');
+// Remove duplicate socket initialization since we're passing socket instance
+// const socket = io('http://localhost:3001', {
+//   transports: ['websocket'],
+//   autoConnect: true
+// });
+
+// Remove duplicate authentication since it's handled by the app
+// const key = localStorage.getItem('key');
+// if (key) {
+//   socket.emit('login', { key });
+// } else {
+//   socket.emit('login', { key: null });
+// }
 
 const symbolsCount = 12;
 
@@ -56,9 +68,7 @@ for (let i = 1; i <= symbolsCount; i++) {
   });
 }
 
-let keepThrowingCoins = true;
 async function throwCoins(stage) {
-  const coins = [];
   for (let i = 0; i < 50 && keepThrowingCoins; i++) {
     const coin = PIXI.AnimatedSprite.fromFrames(PIXI.Assets.cache.get('coin-animation-spritesheet').data.animations.coin);
     coin.x = 1280 / 2;
@@ -164,6 +174,8 @@ game.onInit(() => {
   let lineIsBeingHighlighted = false;
   let linesHighlightTime = 0;
   let winDisplayed = false;
+  let keepThrowingCoins = false;
+
   game.ticker.add((delta) => {
     if (game.betResponse && game.betResponse.isWin && !game.reelsController.reelsActive) {
       if (!winDisplayed) {

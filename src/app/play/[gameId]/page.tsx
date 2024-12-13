@@ -1,12 +1,12 @@
 import { notFound } from 'next/navigation';
-import Game from '@/components/game/Game';
+import Game from '../../../components/game/Game';
 
 const VALID_GAMES = ['egyptian-treasures', 'rock-climber'];
 
 interface GamePageProps {
-  params: {
+  params: Promise<{
     gameId: string;
-  };
+  }>;
 }
 
 export async function generateStaticParams() {
@@ -15,17 +15,19 @@ export async function generateStaticParams() {
   }));
 }
 
-export default function GamePage({ params }: GamePageProps) {
-  if (!VALID_GAMES.includes(params.gameId)) {
+export default async function GamePage({ params }: GamePageProps) {
+  const { gameId } = await params;
+  
+  if (!VALID_GAMES.includes(gameId)) {
     notFound();
   }
 
-  return <Game gameId={params.gameId} />;
+  return <Game gameId={gameId} />;
 }
 
 // Add metadata for each game
 export async function generateMetadata({ params }: GamePageProps) {
-  const gameId = params.gameId;
+  const { gameId } = await params;
   
   const titles: Record<string, string> = {
     'egyptian-treasures': 'Egyptian Treasures - Sloticon',

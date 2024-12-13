@@ -25,7 +25,7 @@ const GameList = () => {
     }
   ];
 
-  const handlePlayClick = (e: React.MouseEvent, gameId: string) => {
+  const handlePlayClick = (e: React.MouseEvent) => {
     if (!loggedIn) {
       e.preventDefault();
       setShowAccountsModal(true);
@@ -33,37 +33,39 @@ const GameList = () => {
   };
 
   return (
-    <div className={styles.gameList}>
-      <div className={styles.list}>
-        {games.map((game) => (
-          <div key={game.id} className={styles.game}>
-            <Image
-              className={styles.logo}
-              src={game.logo}
-              alt={`${game.title} Logo`}
-              width={200}
-              height={100}
-              priority
-            />
-            
-            <span className={styles.gameTitle}>{game.title}</span>
+    <>
+      <div className={styles.gameList}>
+        <div className={styles.list}>
+          {games.map((game) => (
+            <div key={game.id} className={styles.game}>
+              <Image
+                className={styles.logo}
+                src={game.logo}
+                alt={`${game.title} Logo`}
+                width={200}
+                height={100}
+                priority
+              />
+              
+              <span className={styles.gameTitle}>{game.title}</span>
 
-            <Link 
-              href={`/play/${game.id}`} 
-              className={styles.playButton}
-              onClick={(e) => handlePlayClick(e, game.id)}
-            >
-              Play
-            </Link>
-          </div>
-        ))}
+              <Link 
+                href={`/play/${game.id}`} 
+                className={styles.playButton}
+                onClick={handlePlayClick}
+              >
+                Play
+              </Link>
+            </div>
+          ))}
+        </div>
       </div>
 
       <AccountsModal 
         isOpen={showAccountsModal} 
         onClose={() => setShowAccountsModal(false)} 
       />
-    </div>
+    </>
   );
 }
 

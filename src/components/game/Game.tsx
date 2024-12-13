@@ -6,12 +6,13 @@ import Link from 'next/link';
 import axios from 'axios';
 import { Application } from 'pixi.js';
 import gsap from 'gsap';
+import { socket } from '../../utils/socket';
 import styles from './Game.module.css';
 
 // Import game classes
-import Reel from '@/slot/Reel';
-import SlotGame from '@/slot/SlotGame';
-import initControls from '@/slot/initControls';
+import Reel from '../../slot/Reel';
+import SlotGame from '../../slot/SlotGame';
+import initControls from '../../slot/initControls';
 
 interface GameProps {
   gameId: string;
@@ -22,6 +23,18 @@ interface GameInstance {
   destroy: () => void;
 }
 
+// Simplify the GameScript type to avoid circular references
+type GameScript = (
+  gameId: string,
+  Game: unknown,
+  Reel: unknown,
+  initControls: unknown,
+  socket: unknown,
+  PIXI: unknown,
+  gsap: unknown,
+  goToLobby: () => void
+) => GameInstance;
+
 const Game = ({ gameId }: GameProps) => {
   const elRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -31,7 +44,7 @@ const Game = ({ gameId }: GameProps) => {
     const loadGame = async () => {
       try {
         console.log(`Loading game with ID: ${gameId}`);
-        const response = await axios.get(`/gamescripts/${gameId}.js`);
+        const response = await axios.get(`http://localhost:3001/gamescripts/${gameId}.js`);
         console.log('Game script response:', response.data);
         
         const gameScript = new Function(
@@ -44,23 +57,14 @@ const Game = ({ gameId }: GameProps) => {
           'gsap',
           'goToLobby',
           response.data
-        ) as (
-          gameId: string,
-          Game: typeof SlotGame,
-          Reel: typeof Reel,
-          initControls: typeof initControls,
-          socket: null,
-          PIXI: typeof import('pixi.js'),
-          gsap: typeof import('gsap'),
-          goToLobby: () => void
-        ) => GameInstance;
+        ) as GameScript;
 
         const game = gameScript(
           gameId,
           SlotGame,
           Reel,
           initControls,
-          null,
+          socket,
           await import('pixi.js'),
           gsap,
           () => router.push('/')
