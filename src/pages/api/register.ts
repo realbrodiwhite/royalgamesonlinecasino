@@ -1,29 +1,22 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcrypt';
 import { z } from 'zod';
-
-const prisma = new PrismaClient();
-
-// Rate limiting types
-type RateLimitRecord = {
-  count: number;
-  timestamp: number;
-};
-
-// Rate limiting map
-const rateLimitMap = new Map<string, RateLimitRecord>();
-const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
-const MAX_REQUESTS = 5;
+import { withRateLimit } from '../../middleware/rateLimit';
+import { userPreferences } from '../../lib/redis';
+import { prisma } from '../../lib/prisma';
+import { UAParser } from 'ua-parser-js';
+import crypto from 'crypto';
 
 // Validation schema
 const RegisterSchema = z.object({
   username: z.string()
     .min(3, 'Username must be at least 3 characters')
     .max(20, 'Username cannot exceed 20 characters')
-    .regex(/^[a-zA-Z0-9_-]+$/, 'Username can only contain letters, numbers, underscores, and hyphens'),
+    .regex(/^[a-zA-Z0-9_-]+$/, 'Username can only contain letters, numbers, underscores, and hyphens')
+    .transform(username => username.toLowerCase()),
   email: z.string()
-    .email('Invalid email format'),
+    .email('Invalid email format')
+    .transform(email => email.toLowerCase()),
   phone: z.string()
     .regex(/^\+?[1-9]\d{1,14}$/, 'Invalid phone number format')
     .optional()
@@ -39,76 +32,54 @@ const RegisterSchema = z.object({
     .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/, 
       'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character'),
   verifyPassword: z.string()
+}).refine((data) => data.password === data.verifyPassword, {
+  message: "Passwords don't match",
+  path: ["verifyPassword"],
 });
 
-// Rate limiting middleware
-const checkRateLimit = (ip: string): boolean => {
-  const now = Date.now();
-  const record = rateLimitMap.get(ip);
-
-  if (!record) {
-    rateLimitMap.set(ip, { count: 1, timestamp: now });
-    return true;
-  }
-
-  if (now - record.timestamp > RATE_LIMIT_WINDOW) {
-    rateLimitMap.set(ip, { count: 1, timestamp: now });
-    return true;
-  }
-
-  if (record.count >= MAX_REQUESTS) {
-    return false;
-  }
-
-  record.count++;
-  return true;
+// Check for common passwords
+const isCommonPassword = async (password: string): Promise<boolean> => {
+  const hash = crypto.createHash('sha256').update(password).digest('hex');
+  // You would typically check against a database or API of common passwords
+  const commonPasswordHashes = [
+    'password123', '12345678', 'qwerty123', 'admin123'
+  ].map(pwd => crypto.createHash('sha256').update(pwd).digest('hex'));
+  
+  return commonPasswordHashes.includes(hash);
 };
 
-// Clean up old rate limit entries every hour
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, record] of rateLimitMap.entries()) {
-    if (now - record.timestamp > RATE_LIMIT_WINDOW) {
-      rateLimitMap.delete(ip);
-    }
-  }
-}, 60 * 60 * 1000);
+// Device fingerprinting
+const getDeviceFingerprint = (req: NextApiRequest): string => {
+  const ua = new UAParser(req.headers['user-agent']);
+  const browser = ua.getBrowser();
+  const os = ua.getOS();
+  const device = ua.getDevice();
 
-type RegisteredUser = {
-  id: string;
-  username: string;
-  email: string;
-  phone: string | null;
-  dateOfBirth: Date;
-  role: string;
-  createdAt: Date;
+  const fingerprint = {
+    browser: `${browser.name || ''}${browser.version || ''}`,
+    os: `${os.name || ''}${os.version || ''}`,
+    device: `${device.vendor || ''}${device.model || ''}`,
+    ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+    acceptLanguage: req.headers['accept-language'],
+  };
+
+  return crypto.createHash('sha256')
+    .update(JSON.stringify(fingerprint))
+    .digest('hex');
 };
 
-type ApiResponse = {
-  message: string;
-  user?: RegisteredUser;
-  errors?: z.ZodError['errors'];
-  error?: unknown;
-};
-
-export default async function handler(
-  req: NextApiRequest, 
-  res: NextApiResponse<ApiResponse>
+async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
 ) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  // Get client IP
-  const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-  const ip = Array.isArray(clientIp) ? clientIp[0] : clientIp;
-
-  // Check rate limit
-  if (!checkRateLimit(ip)) {
-    return res.status(429).json({ 
-      message: 'Too many registration attempts. Please try again later.' 
-    });
-  }
+  const deviceFingerprint = getDeviceFingerprint(req);
+  const ipAddress = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || 
+                   req.socket.remoteAddress || 
+                   'unknown';
 
   try {
     const validationResult = RegisterSchema.safeParse(req.body);
@@ -125,13 +96,58 @@ export default async function handler(
       email,
       phone,
       dateOfBirth,
-      password,
-      verifyPassword
+      password
     } = validationResult.data;
 
-    // Check if passwords match
-    if (password !== verifyPassword) {
-      return res.status(400).json({ message: 'Passwords do not match' });
+    // Check for common passwords
+    if (await isCommonPassword(password)) {
+      return res.status(400).json({
+        message: 'Password is too common. Please choose a stronger password.'
+      });
+    }
+
+    // Check for suspicious registration patterns
+    const recentRegistrations = await prisma.$transaction([
+      // Check registrations from same device
+      prisma.registrationLog.count({
+        where: {
+          deviceFingerprint,
+          createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+        }
+      }),
+      // Check registrations from same IP
+      prisma.registrationLog.count({
+        where: {
+          ipAddress,
+          createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+        }
+      }),
+      // Check registrations with same email domain
+      prisma.registrationLog.count({
+        where: {
+          email: { endsWith: `@${email.split('@')[1]}` },
+          createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+        }
+      })
+    ]);
+
+    const [deviceCount, ipCount, emailDomainCount] = recentRegistrations;
+
+    if (deviceCount > 3 || ipCount > 5 || emailDomainCount > 10) {
+      await prisma.registrationLog.create({
+        data: {
+          email,
+          ipAddress,
+          userAgent: req.headers['user-agent'] || 'unknown',
+          deviceFingerprint,
+          success: false,
+          errorMessage: 'Suspicious registration pattern detected'
+        }
+      });
+
+      return res.status(400).json({
+        message: 'Too many registration attempts. Please try again later.'
+      });
     }
 
     // Check if username or email already exists
@@ -145,17 +161,30 @@ export default async function handler(
     });
 
     if (existingUser) {
+      await prisma.registrationLog.create({
+        data: {
+          email,
+          ipAddress,
+          userAgent: req.headers['user-agent'] || 'unknown',
+          deviceFingerprint,
+          success: false,
+          errorMessage: 'Username or email already exists'
+        }
+      });
+
       return res.status(409).json({ 
-        message: existingUser.email === email 
-          ? 'Email already registered' 
-          : 'Username already taken'
+        message: 'Registration failed. Please try again with different credentials.'
       });
     }
 
-    // Hash password
-    const hashedPassword = await hash(password, 10);
+    // Generate verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-    // Create new user
+    // Hash password with increased rounds
+    const hashedPassword = await hash(password, 12);
+
+    // Create new user with verification token
     const newUser = await prisma.user.create({
       data: {
         username,
@@ -163,7 +192,14 @@ export default async function handler(
         phone,
         dateOfBirth,
         password: hashedPassword,
-        role: 'user'
+        role: 'user',
+        deviceFingerprint,
+        verificationTokens: {
+          create: {
+            token: verificationToken,
+            expires: tokenExpiry
+          }
+        }
       },
       select: {
         id: true,
@@ -176,32 +212,60 @@ export default async function handler(
       }
     });
 
-    // Convert numeric id to string for the response
-    const user: RegisteredUser = {
-      ...newUser,
-      id: String(newUser.id)
-    };
+    // Log successful registration
+    await prisma.registrationLog.create({
+      data: {
+        userId: newUser.id,
+        email,
+        ipAddress,
+        userAgent: req.headers['user-agent'] || 'unknown',
+        deviceFingerprint,
+        success: true
+      }
+    });
 
-    // TODO: Generate verification token and send verification email
-    // const verificationToken = await prisma.verificationToken.create({
-    //   data: {
-    //     identifier: email,
-    //     token: crypto.randomBytes(32).toString('hex'),
-    //     expires: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
-    //   }
-    // });
-    // await sendVerificationEmail(email, verificationToken.token);
+    // Store initial user preferences
+    await userPreferences.set(newUser.id, {
+      userId: newUser.id,
+      theme: 'light',
+      notifications: true,
+      sound: true
+    });
+
+    // TODO: Send verification email
+    // await sendVerificationEmail(email, verificationToken);
 
     return res.status(201).json({
-      message: 'User registered successfully',
-      user
+      message: 'Registration successful. Please check your email to verify your account.',
+      user: newUser
     });
 
   } catch (error) {
     console.error('Registration error:', error);
+
+    // Log failed registration attempt
+    if (req.body?.email) {
+      await prisma.registrationLog.create({
+        data: {
+          email: req.body.email,
+          ipAddress,
+          userAgent: req.headers['user-agent'] || 'unknown',
+          deviceFingerprint,
+          success: false,
+          errorMessage: error instanceof Error ? error.message : 'Unknown error'
+        }
+      });
+    }
+
     return res.status(500).json({ 
-      message: 'Internal server error',
+      message: 'Registration failed. Please try again later.',
       error: process.env.NODE_ENV === 'development' ? error : undefined
     });
   }
 }
+
+// Apply rate limiting to the registration endpoint
+export default withRateLimit(handler, {
+  limit: 3, // 3 attempts
+  windowSeconds: 60 * 60 // 1 hour window
+});

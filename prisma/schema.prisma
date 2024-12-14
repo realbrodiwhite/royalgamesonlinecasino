@@ -2,25 +2,9 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Main user data and authentication - PostgreSQL
-// Best for relational data with ACID compliance
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-// Game statistics and high scores - MongoDB
-// Better for high-write scenarios and flexible schemas
-datasource gameDb {
-  provider = "mongodb"
-  url      = env("MONGODB_URL")
-}
-
-// Session and cache data - SQLite
-// Fast local storage for development and caching
-datasource cacheDb {
   provider = "sqlite"
-  url      = "file:./cache.db"
+  url      = "file:./dev.db"
 }
 
 model User {
@@ -33,70 +17,74 @@ model User {
   role                String    @default("user")
   emailVerified       DateTime?
   
+  // Security fields
+  deviceFingerprint   String?
+  lastFailedLogin     DateTime?
+  failedLoginAttempts Int       @default(0)
+  accountLocked       Boolean   @default(false)
+  lockUntil          DateTime?
+  
   // Account Status
   balance             Int       @default(0)
   emailSubscriber     Boolean   @default(false)
   textSubscriber      Boolean   @default(false)
   deviceNotifications Boolean   @default(false)
   
-  // Basic game stats (frequently accessed)
+  // Game Statistics
   totalTimePlayed     Int       @default(0)
-  lastLogin           DateTime  @default(now())
+  totalCreditsWon     Int      @default(0)
+  biggestWin          Int      @default(0)
+  lastBigWin          Int      @default(0)
+  lastBigWinDate      DateTime @default(now())
+  winLossDollars      Float    @default(0.0)
   
   // Timestamps
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+  lastLogin           DateTime  @default(now())
+
+  // Relations
+  logs                Log[]
 
   @@index([email])
   @@index([username])
   @@index([lastLogin])
+  @@index([deviceFingerprint])
 }
 
-// Detailed game statistics in MongoDB
-model GameStats {
-  id              String   @id @default(auto()) @map("_id") @gameDb
-  userId          String
-  gameId          String
-  totalCreditsWon Int      @default(0)
-  biggestWin      Int      @default(0)
-  lastBigWin      Int      @default(0)
-  lastBigWinDate  DateTime @default(now())
-  winLossDollars  Float    @default(0.0)
-  playHistory     Json[]   // Flexible schema for detailed game history
-  achievements    Json[]   // Flexible schema for achievements
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+model Log {
+  id                String   @id @default(cuid())
+  userId            String?
+  user              User?    @relation(fields: [userId], references: [id])
+  email             String
+  ipAddress         String
+  userAgent         String
+  deviceFingerprint String
+  eventType         String   // 'registration', 'login', 'password_reset', etc.
+  success           Boolean
+  errorMessage      String?
+  metadata          String?  // JSON string for additional data
+  createdAt         DateTime @default(now())
 
-  @@index([userId, gameId]) @gameDb
-}
-
-// Session and cache data in SQLite
-model SessionCache {
-  id        String   @id @default(cuid()) @cacheDb
-  userId    String   @cacheDb
-  data      String   @cacheDb // JSON stringified session data
-  expiresAt DateTime @cacheDb
-
-  @@index([userId]) @cacheDb
-  @@index([expiresAt]) @cacheDb
-}
-
-// Verification tokens in PostgreSQL (security-critical)
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-}
-
-// Password reset tokens in PostgreSQL (security-critical)
-model PasswordResetToken {
-  id        String   @id @default(cuid())
-  userId    String
-  token     String   @unique
-  expires   DateTime
-  createdAt DateTime @default(now())
-
+  @@index([email])
+  @@index([ipAddress])
+  @@index([deviceFingerprint])
+  @@index([createdAt])
+  @@index([eventType])
   @@index([userId])
+}
+
+model Token {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  token       String   @unique
+  type        String   @default("verification") // 'verification' or 'reset'
+  expires     DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([token])
+  @@index([email])
+  @@index([expires])
+  @@index([type])
 }
