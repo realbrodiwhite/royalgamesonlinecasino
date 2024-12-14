@@ -16,13 +16,13 @@ const GameList = () => {
     {
       id: 'egyptian-treasures',
       title: 'Egyptian Treasures',
-      logo: '/data/egyptian-treasures/logo-spritesheet.png',
+      logo: '/data/egyptian-treasures/egyptian-treasures-logo.png',
       dimensions: { width: 200, height: 100 }
     },
     {
       id: 'rock-climber',
       title: 'Rock Climber',
-      logo: '/data/rock-climber/logo-animation-spritesheet.png',
+      logo: '/data/rock-climber/rock-climber-logo.png',
       dimensions: { width: 200, height: 100 }
     }
   ];
