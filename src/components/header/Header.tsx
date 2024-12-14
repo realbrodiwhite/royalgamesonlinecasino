@@ -1,7 +1,7 @@
 'use client';
 
 import { useSelector } from 'react-redux';
-import { RootState } from '@/store/store';
+import { RootState } from '/store/store';
 import styles from './Header.module.css';
 
 const Header = () => {

@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import Game from '../components/game/Game';
 import { socket } from '../utils/socket';
 import axios from 'axios';
@@ -112,7 +112,7 @@ describe('Game Component', () => {
     render(<Game gameId={mockGameId} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/socket_1\.socket\.once is not a function/i)).toBeInTheDocument();
+      expect(screen.getByText(/Failed to load game script/i)).toBeInTheDocument();
     });
   });
 
@@ -122,9 +122,10 @@ describe('Game Component', () => {
 
     render(<Game gameId={mockGameId} />);
 
-    // Wait for error state
+    // Wait for error state and retry button
     await waitFor(() => {
-      expect(screen.getByText(/socket_1\.socket\.once is not a function/i)).toBeInTheDocument();
+      expect(screen.getByText(/Failed to load game script/i)).toBeInTheDocument();
+      expect(screen.getByText(/Retry/i)).toBeInTheDocument();
     });
 
     // Mock successful response for retry
@@ -133,8 +134,9 @@ describe('Game Component', () => {
     });
 
     // Click retry button
-    const retryButton = screen.getByText(/Retry/i);
-    fireEvent.click(retryButton);
+    await act(async () => {
+      fireEvent.click(screen.getByText(/Retry/i));
+    });
 
     // Verify loading state after retry
     expect(screen.getByText('Loading...')).toBeInTheDocument();

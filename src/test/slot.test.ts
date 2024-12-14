@@ -1,7 +1,8 @@
-import SlotGame from '../slot/SlotGame';
+ 
+ import SlotGame from '../slot/SlotGame';
 import Reel from '../slot/Reel';
 import { ReelsController } from '../slot/ReelsController';
-import { Container, Texture } from 'pixi.js';
+import { Container, Texture, Sprite } from 'pixi.js';
 import io from 'socket.io-client';
 
 // Mock PIXI.js
@@ -39,9 +40,22 @@ jest.mock('pixi.js', () => ({
     eventMode: 'none',
     cursor: 'default',
     on: jest.fn(),
+    off: jest.fn(),
+  })),
+  Sprite: jest.fn().mockImplementation(() => ({
+    scale: { set: jest.fn() },
+    anchor: { set: jest.fn() },
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
+    texture: { width: 100, height: 100 },
   })),
   Texture: {
-    from: jest.fn(),
+    from: jest.fn().mockReturnValue({
+      width: 100,
+      height: 100,
+    }),
   },
   Assets: {
     load: jest.fn().mockResolvedValue({}),
@@ -50,16 +64,17 @@ jest.mock('pixi.js', () => ({
 
 // Mock socket.io
 jest.mock('socket.io-client', () => {
-  return jest.fn(() => ({
+  const mockSocket = {
     on: jest.fn(),
     emit: jest.fn(),
     connect: jest.fn(),
-  }));
+  };
+  return jest.fn(() => mockSocket);
 });
 
 describe('Slot Game', () => {
   let game: SlotGame;
-  const mockSocket = io('http://localhost:3000');
+  const mockSocket = io();
 
   const mockConfig = {
     id: 'test-game',
@@ -181,9 +196,9 @@ describe('Slot Game', () => {
 describe('Reel', () => {
   let reel: Reel;
   const mockTextures = [
-    {} as Texture,
-    {} as Texture,
-    {} as Texture,
+    { width: 100, height: 100 } as Texture,
+    { width: 100, height: 100 } as Texture,
+    { width: 100, height: 100 } as Texture,
   ];
 
   beforeEach(() => {
@@ -204,7 +219,7 @@ describe('Reel', () => {
 
 describe('ReelsController', () => {
   let reelsController: ReelsController;
-  const mockReels = Array(5).fill(null).map(() => new Reel([{} as Texture]));
+  const mockReels = Array(5).fill(null).map(() => new Reel([{ width: 100, height: 100 } as Texture]));
 
   beforeEach(() => {
     reelsController = new ReelsController(mockReels);
