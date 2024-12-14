@@ -1,6 +1,6 @@
 const symbolsCount = 12;
 
-const game = new Game({
+const gameInstance = new Game({
   id: 'egyptian-treasures',
   width: 1280,
   height: 960,
@@ -16,22 +16,22 @@ const game = new Game({
 }, socket);
 
 // Define gameId from the game instance
-const gameId = game.config.id;
+const gameId = gameInstance.config.id;
 const assetsUrl = `/data/${gameId}/`;
 
 async function initGame() {
   try {
     // Initialize the game first
-    await game.init();
+    await gameInstance.init();
 
     // Create loading screen container that will be on top of everything
     const loadingContainer = new PIXI.Container();
     loadingContainer.zIndex = 1000;
-    game.stage.addChild(loadingContainer);
-    game.stage.sortableChildren = true;
+    gameInstance.stage.addChild(loadingContainer);
+    gameInstance.stage.sortableChildren = true;
 
     // Hide the main game container initially
-    game.stage.visible = false;
+    gameInstance.stage.visible = false;
 
     console.log('Loading assets from:', assetsUrl);
 
@@ -109,12 +109,12 @@ async function initGame() {
     console.log('Loading game assets:', gameAssets);
 
     // Load game assets
-    await game.addResource(gameAssets);
+    await gameInstance.addResource(gameAssets);
 
     let loadedAssets = 0;
     const totalAssets = gameAssets.length;
 
-    game.onLoading((progress) => {
+    gameInstance.onLoading((progress) => {
       loadedAssets++;
       console.log(`Loading progress: ${loadedAssets}/${totalAssets}`);
       const progressFrame = Math.min(Math.floor((loadedAssets / totalAssets) * 23), 23);
@@ -131,9 +131,9 @@ async function initGame() {
             // Remove loading screen
             loadingContainer.destroy();
             // Show and initialize game
-            game.stage.visible = true;
+            gameInstance.stage.visible = true;
             setupGame();
-            game.start();
+            gameInstance.start();
           }
         });
       }
@@ -188,7 +188,7 @@ async function throwCoins(stage) {
 
 function setupGame() {
   console.log('Setting up game');
-  const background = game.addSprite('background');
+  const background = gameInstance.addSprite('background');
   background.z = 2;
 
   // Create logo components after ensuring assets are loaded
@@ -203,7 +203,7 @@ function setupGame() {
     logoAnimation.z = 6;
     logoAnimation.animationSpeed = 0.3;
     logoAnimation.play();
-    game.stage.addChild(logoAnimation);
+    gameInstance.stage.addChild(logoAnimation);
 
     // Create static logo
     const logo = new PIXI.Sprite(PIXI.Texture.from('logo'));
@@ -211,10 +211,10 @@ function setupGame() {
     logo.x += 15;
     logo.y = 50;
     logo.z = 7;
-    game.stage.addChild(logo);
+    gameInstance.stage.addChild(logo);
   }
 
-  const btnExit = game.addButton([
+  const btnExit = gameInstance.addButton([
     'back_button1.png',
     'back_button2.png',
     'back_button3.png',
@@ -226,7 +226,7 @@ function setupGame() {
   btnExit.y = 75;
   btnExit.z = 6;
 
-  const btnToggleMusic = game.addButton([
+  const btnToggleMusic = gameInstance.addButton([
     'music_button1.png',
     'music_button2.png',
     'music_button3.png',
@@ -239,14 +239,14 @@ function setupGame() {
   btnToggleMusic.y = 75;
   btnToggleMusic.z = 6;
 
-  const reels = game.reelsController.reels;
+  const reels = gameInstance.reelsController.reels;
 
   reels.forEach((reel, i) => {
     reel.container.x = 57 + (i * 223) + (i * 13);
     reel.container.y = 128;
   });
 
-  const controls = initControls(game);
+  const controls = initControls(gameInstance);
   controls.scale.x *= 1.1;
   controls.scale.y *= 1.1;
   controls.x -= 1280 * 0.05;
@@ -258,31 +258,31 @@ function setupGame() {
   let linesHighlightTime = 0;
   let winDisplayed = false;
 
-  game.ticker.add((delta) => {
-    if (game.betResponse && game.betResponse.isWin && !game.reelsController.reelsActive) {
+  gameInstance.ticker.add((delta) => {
+    if (gameInstance.betResponse && gameInstance.betResponse.isWin && !gameInstance.reelsController.reelsActive) {
       if (!winDisplayed) {
         keepThrowingCoins = true;
-        throwCoins(game.stage);
+        throwCoins(gameInstance.stage);
 
-        game.soundAssets.coinsEffect.volume = 0.4;
-        game.soundAssets.coinsEffect.currentTime = 0;
-        game.soundAssets.coinsEffect.play();
+        gameInstance.soundAssets.coinsEffect.volume = 0.4;
+        gameInstance.soundAssets.coinsEffect.currentTime = 0;
+        gameInstance.soundAssets.coinsEffect.play();
 
         winDisplayed = true;
-        game.oncePlay(() => {
-          game.soundAssets.coinsEffect.pause();
+        gameInstance.oncePlay(() => {
+          gameInstance.soundAssets.coinsEffect.pause();
           winDisplayed = false;
           keepThrowingCoins = false;
         });
       }
       if (!lineIsBeingHighlighted) {
-        game.betResponse.win.forEach((line, k) => {
+        gameInstance.betResponse.win.forEach((line, k) => {
           if ((lineToHighlight === 0 || k + 1 === lineToHighlight)) {
             for (let i = 0; i < line.map.length && i < line.count; i++) {
               for (let j = 0; j < line.map[i].length; j++) {
                 if (line.map[i][j] === 1) {
-                  const symbol = game.reelsController.reels[i].symbols[j];
-                  const symbolValue = game.reelsController.reels[i].values[j];
+                  const symbol = gameInstance.reelsController.reels[i].symbols[j];
+                  const symbolValue = gameInstance.reelsController.reels[i].values[j];
                   let symbolFrame;
 
                   if (lineToHighlight === 0) {
@@ -309,7 +309,7 @@ function setupGame() {
                       }
                     });
                   };
-                  game.reelsController.reels[i].onceStart(() => {
+                  gameInstance.reelsController.reels[i].onceStart(() => {
                     symbol.hide = false;
                     setTimeout(() => {
                       if (!animation.destroyed) {
@@ -340,7 +340,7 @@ function setupGame() {
       linesHighlightTime += delta * 16.667;
 
       if (linesHighlightTime >= 1900) {
-        if (++lineToHighlight > game.betResponse.win.length) {
+        if (++lineToHighlight > gameInstance.betResponse.win.length) {
           lineToHighlight = 0;
         }
 
@@ -383,11 +383,11 @@ function setupGame() {
 console.log('Starting game initialization');
 initGame().catch(console.error);
 
-game.onDestroy(() => {
+gameInstance.onDestroy(() => {
   if (themeSoundtrack) {
     themeSoundtrack.pause();
   }
 });
 
-window.game = game;
-return game;
+window.game = gameInstance;
+return gameInstance;
