@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'; // Importing types for Next.js API request and response
+import { sessions } from '../../lib/redis'; // Importing sessions object for Redis session management
 import { compare } from 'bcrypt'; // Importing compare function for password verification
 import { z } from 'zod'; // Importing Zod for schema validation
 import { withRateLimit } from '../../middleware/rateLimit'; // Importing rate limiting middleware
@@ -8,7 +9,7 @@ import crypto from 'crypto'; // Importing crypto for hashing
 
 // Validation schema for login
 const LoginSchema = z.object({
-  email: z.string()
+  email: z.string().email('Invalid email format') // Validate email format
     .email('Invalid email format') // Validate email format
     .transform(email => email.toLowerCase()), // Transform email to lowercase
   password: z.string()
@@ -182,6 +183,16 @@ async function handler(
       balance: user.balance,
       lastLogin: user.lastLogin
     };
+
+    // Create session data
+    const sessionData = {
+      userId: user.id,
+      expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 1 day expiration
+      data: { /* additional data if needed */ }
+    };
+
+    // Store session in Redis
+    await sessions.set(user.id, sessionData); // Set session in Redis
 
     return res.status(200).json({
       message: 'Login successful',
