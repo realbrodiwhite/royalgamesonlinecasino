@@ -1,17 +1,19 @@
-'use client';
+'use client'; // Indicates that this component is a client component
 
-import { useState } from 'react';
-import { useSelector } from 'react-redux';
-import Link from 'next/link';
-import Image from 'next/image';
-import { RootState } from '../../store/store';
-import AccountsModal from '../accounts/AccountsModal';
-import styles from './GameList.module.css';
+import { useState } from 'react'; // Importing useState hook for state management
+import { useSelector } from 'react-redux'; // Importing useSelector to access Redux state
+import Link from 'next/link'; // Importing Link for client-side navigation
+import Image from 'next/image'; // Importing Image for optimized image rendering
+import { RootState } from '../../store/store'; // Importing RootState type for TypeScript
+import AccountsModal from '../accounts/AccountsModal'; // Importing AccountsModal component
+import styles from './GameList.module.css'; // Importing CSS module for styling
 
+// GameList component to display a list of games
 const GameList = () => {
-  const loggedIn = useSelector((state: RootState) => state.lobby.loggedIn);
-  const [showAccountsModal, setShowAccountsModal] = useState(false);
+  const loggedIn = useSelector((state: RootState) => state.lobby.loggedIn); // Accessing logged-in state from Redux
+  const [showAccountsModal, setShowAccountsModal] = useState(false); // State to control AccountsModal visibility
 
+  // Array of games to be displayed
   const games = [
     {
       id: 'egyptian-treasures',
@@ -27,10 +29,11 @@ const GameList = () => {
     }
   ];
 
+  // Function to handle play button clicks
   const handlePlayClick = (e: React.MouseEvent) => {
     if (!loggedIn) {
-      e.preventDefault();
-      setShowAccountsModal(true);
+      e.preventDefault(); // Prevent default link behavior if not logged in
+      setShowAccountsModal(true); // Show the AccountsModal
     }
   };
 
@@ -73,4 +76,4 @@ const GameList = () => {
   );
 }
 
-export default GameList;
+export default GameList; // Exporting the GameList component
