@@ -2,7 +2,7 @@
 const nextConfig = {
   images: {
     domains: ['localhost'],
-    unoptimized: true,
+    unoptimized: false,
   },
   // Optimize build
   poweredByHeader: false,

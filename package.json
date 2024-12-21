@@ -1,7 +1,17 @@
 {
-  "name": "sloticon social casino",
-  "version": "0.1.0",
+  "name": "sloticon",
+  "author": "https://github.com/realbrodiwhite",
+  "keywords": [
+    "sloticon",
+    "social casino",
+    "social gaming",
+    "slot machine",
+    "egyptian trteasures",
+    "brodi branded development"
+  ],
+  "version": "0.4.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",

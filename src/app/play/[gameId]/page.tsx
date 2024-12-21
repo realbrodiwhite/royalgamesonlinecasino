@@ -4,19 +4,32 @@ import Game from '../../../components/game/Game';
 const VALID_GAMES = ['egyptian-treasures', 'rock-climber'];
 
 interface GamePageProps {
-  params: Promise<{
+  params: {
     gameId: string;
-  }>;
+  };
 }
 
-export async function generateStaticParams() {
+export async function getStaticProps({ params }: GamePageProps) {
+  const { gameId } = params;
+
+  // Fetch any necessary game data here
+  const gameData = await fetchGameData(gameId); // Implement this function to fetch game data
+
+  return {
+    props: {
+      gameData,
+    },
+  };
+}
+
+export async function getStaticPaths() {
   return VALID_GAMES.map((gameId) => ({
     gameId,
   }));
 }
 
-export default async function GamePage({ params }: GamePageProps) {
-  const { gameId } = await params;
+export default function GamePage({ params }: GamePageProps) {
+  const { gameId } = params; // Directly access params without await
   
   if (!VALID_GAMES.includes(gameId)) {
     notFound();
@@ -27,7 +40,7 @@ export default async function GamePage({ params }: GamePageProps) {
 
 // Add metadata for each game
 export async function generateMetadata({ params }: GamePageProps) {
-  const { gameId } = await params;
+  const { gameId } = params;
   
   const titles: Record<string, string> = {
     'egyptian-treasures': 'Egyptian Treasures - Sloticon',
