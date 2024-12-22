@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import Game from '../../../components/game/Game';
+import { getGameData } from '../../../lib/api'; // Assume this function fetches game data
 
 const VALID_GAMES = ['egyptian-treasures', 'rock-climber'];
 
@@ -9,33 +10,16 @@ interface GamePageProps {
   };
 }
 
-export async function getStaticProps({ params }: GamePageProps) {
+export default async function GamePage({ params }: GamePageProps) {
   const { gameId } = params;
 
-  // Fetch any necessary game data here
-  const gameData = await fetchGameData(gameId); // Implement this function to fetch game data
-
-  return {
-    props: {
-      gameData,
-    },
-  };
-}
-
-export async function getStaticPaths() {
-  return VALID_GAMES.map((gameId) => ({
-    gameId,
-  }));
-}
-
-export default function GamePage({ params }: GamePageProps) {
-  const { gameId } = params; // Directly access params without await
-  
   if (!VALID_GAMES.includes(gameId)) {
     notFound();
   }
 
-  return <Game gameId={gameId} />;
+  const gameData = await getGameData(gameId); // Fetch game data directly
+
+  return <Game gameId={gameId} gameData={gameData} />; // Pass gameData to Game component
 }
 
 // Add metadata for each game

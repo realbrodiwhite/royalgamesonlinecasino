@@ -12,11 +12,13 @@ const SlotGame = dynamic(() => import('../../slot/SlotGame'), { ssr: false });
 
 interface GameProps {
   gameId: string;
+  gameData: any; // Add gameData prop
 }
 
-const Game = ({ gameId }: GameProps) => {
+const Game = ({ gameId, gameData }: GameProps) => { // Accept gameData prop
   const elRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const gameInstanceRef = useRef<any>(null); // Define gameInstanceRef
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [retryCount, setRetryCount] = useState(0);
@@ -30,10 +32,6 @@ const Game = ({ gameId }: GameProps) => {
         console.log(`Loading game with ID: ${gameId}`);
         setLoading(true);
         setError(null);
-
-        // Fetch game data
-        const gameData = await fetchGameData(gameId);
-        console.log('Game data loaded successfully:', gameData);
 
         // Ensure the container element exists before creating the game
         if (!elRef.current) {
