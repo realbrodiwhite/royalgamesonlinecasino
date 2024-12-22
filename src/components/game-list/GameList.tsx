@@ -1,20 +1,16 @@
-'use client'; // Indicates that this component is a client component
-
 import { useState } from 'react'; // Importing useState hook for state management
-import { useSelector } from 'react-redux'; // Importing useSelector to access Redux state
 import Link from 'next/link'; // Importing Link for client-side navigation
 import Image from 'next/image'; // Importing Image for optimized image rendering
-import { RootState } from '../../store/store'; // Importing RootState type for TypeScript
-import AccountsModal from '../accounts/AccountsModal'; // Importing AccountsModal component
+import dynamic from 'next/dynamic'; // Import dynamic for dynamic imports
 import styles from './GameList.module.css'; // Importing CSS module for styling
 
-// GameList component to display a list of games
-const GameList = () => {
-  const loggedIn = useSelector((state: RootState) => state.lobby.loggedIn); // Accessing logged-in state from Redux
-  const [showAccountsModal, setShowAccountsModal] = useState(false); // State to control AccountsModal visibility
+// Dynamically import AccountsModal
+const AccountsModal = dynamic(() => import('../accounts/AccountsModal'), { ssr: false });
 
-  // Array of games to be displayed
-  const games = [
+// Function to fetch games data (to be implemented)
+const fetchGamesData = async () => {
+  // Implement the logic to fetch game data from an API or server-side source
+  return [
     {
       id: 'egyptian-treasures',
       title: 'Egyptian Treasures',
@@ -28,9 +24,16 @@ const GameList = () => {
       dimensions: { width: 200, height: 100 }
     }
   ];
+};
 
-  // Function to handle play button clicks
+// GameList component to display a list of games
+const GameList = async () => {
+  const games = await fetchGamesData(); // Fetch games data
+
+  const [showAccountsModal, setShowAccountsModal] = useState(false); // State to control AccountsModal visibility
+
   const handlePlayClick = (e: React.MouseEvent) => {
+    // Logic to handle play button clicks
     if (!loggedIn) {
       e.preventDefault(); // Prevent default link behavior if not logged in
       setShowAccountsModal(true); // Show the AccountsModal
@@ -51,12 +54,9 @@ const GameList = () => {
                 height={game.dimensions.height}
                 style={{ objectFit: 'contain' }}
                 priority
-                unoptimized
               />
             </div>
-            
             <span className={styles.gameTitle}>{game.title}</span>
-
             <Link 
               href={`/play/${game.id}`} 
               className={styles.playButton}

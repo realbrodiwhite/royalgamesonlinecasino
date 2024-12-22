@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Providers } from '../components/Providers';
+import { ErrorBoundary } from 'react-error-boundary'; // Importing ErrorBoundary for error handling
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -20,13 +21,15 @@ export const viewport = {
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode; // Updated type for children
 }) {
   return (
     <html lang="en">
       <body>
         <Providers>
-          {children}
+          <ErrorBoundary fallback={<div>Something went wrong!</div>}> {/* Error boundary for child components */}
+            {children}
+          </ErrorBoundary>
         </Providers>
       </body>
     </html>
